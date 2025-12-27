@@ -1,0 +1,11 @@
+load("//:ecs_binary.bzl", "ecs_cc_binary")
+
+ecs_cc_binary(
+    name = "ecs_experiment",
+    srcs = ["ecs_experiment.cpp"],
+)
+
+ecs_cc_binary(
+    name = "ecs_experiment_SoA",
+    srcs = ["ecs_experiment_SoA.cpp"],
+)

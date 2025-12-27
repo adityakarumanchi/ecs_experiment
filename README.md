@@ -1,0 +1,2 @@
+This repository is for experimenting with structure-of-arrays and Entity-Component-System design approaches.
+It uses Google Benchmark for measuring and comparing the performance of different approaches to simulating the same toy problem.
