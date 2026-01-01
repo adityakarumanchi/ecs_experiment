@@ -9,3 +9,8 @@ ecs_cc_binary(
     name = "ecs_experiment_SoA",
     srcs = ["ecs_experiment_SoA.cpp"],
 )
+
+ecs_cc_binary(
+    name = "ecs_experiment_Eigen",
+    srcs = ["ecs_experiment_Eigen.cpp"],
+)

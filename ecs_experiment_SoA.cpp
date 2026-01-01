@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <iostream>
 #include <memory>
 #include <new>
@@ -33,6 +34,8 @@ class VehiclePool {
   void move_all(float dt) {
     for (size_t i = 0; i < posx_vec_.size(); ++i) {
       posx_vec_[i] += velx_vec_[i] * dt;
+    }
+    for (size_t i = 0; i < posy_vec_.size(); ++i) {
       posy_vec_[i] += vely_vec_[i] * dt;
     }
   }
@@ -40,6 +43,8 @@ class VehiclePool {
   void move_range(size_t start_idx, size_t end_idx, float dt) {
     for (size_t i = start_idx; i < end_idx; ++i) {
       posx_vec_[i] += velx_vec_[i] * dt;
+    }
+    for (size_t i = start_idx; i < end_idx; ++i) {
       posy_vec_[i] += vely_vec_[i] * dt;
     }
   }
@@ -52,13 +57,13 @@ class VehiclePool {
 
 class World {
  public:
-  World(const unsigned int num_vehicles, const float curr_time = 0.0f,
-        const float time_step = 0.01f, const float duration = 1.0f)
+  World(const unsigned int num_vehicles,
+        const float time_step = 0.01f, const float duration = 1.0f, const float curr_time = 0.0f)
       : vehicles_(num_vehicles),
-        curr_time_(curr_time),
-        time_step_(time_step),
-        duration_(duration) {
-    for (int i = 0; i < num_vehicles; ++i) {
+      time_step_(time_step),
+      duration_(duration),
+      curr_time_(curr_time) {
+    for (size_t i = 0; i < num_vehicles; ++i) {
       vehicles_.add_random_vehicle();
     }
   }
@@ -81,42 +86,40 @@ class World {
 
  private:
   VehiclePool vehicles_;
-  float curr_time_, time_step_, duration_;
+  float time_step_, duration_, curr_time_;
 };
 
 const auto n_threads = std::thread::hardware_concurrency();
-constexpr unsigned int scale_factor = 1024;
+constexpr unsigned int scale_factor = 100;
+const auto n_worlds = n_threads * scale_factor;
 
-static void BM_World_Tick_SoA(benchmark::State& state) {
+static void BM_World_Tick(benchmark::State& state) {
   const int num_vehicles = static_cast<int>(state.range(0));
-  // std::cout << "Number of vehicles: " << num_vehicles << std::endl;
   constexpr float time_step = 0.01f;
-  constexpr float duration = 1.0f;
+  constexpr float duration = 100.0f;
 
   for (auto _ : state) {
     std::vector<World> worlds;
     worlds.reserve(n_threads * scale_factor);
-    for (auto i = 0; i < n_threads; ++i) {
+    for (size_t i = 0; i < n_worlds; ++i) {
       worlds.emplace_back(num_vehicles, time_step, duration);
     }
     for (auto& world : worlds) {
       world.tick_all();
     }
   }
-  state.SetItemsProcessed(state.iterations() * num_vehicles);
+  state.SetItemsProcessed(state.iterations() * num_vehicles*n_worlds);
 }
 
-static void BM_World_Tick_Threads_SoA(benchmark::State& state) {
+static void BM_World_Tick_Threads(benchmark::State& state) {
   const int num_vehicles = static_cast<int>(state.range(0));
-  // std::cout << "Number of vehicles: " << num_vehicles << std::endl;
-  // std::cout << "Number of threads: " << n_threads << std::endl;
   constexpr float time_step = 0.01f;
-  constexpr float duration = 1.0f;
+  constexpr float duration = 100.0f;
 
   for (auto _ : state) {
     std::vector<World> worlds;
     worlds.reserve(n_threads * scale_factor);
-    for (size_t i = 0; i < n_threads; ++i) {
+    for (size_t i = 0; i < n_worlds; ++i) {
       worlds.emplace_back(num_vehicles, time_step, duration);
     }
 
@@ -124,7 +127,7 @@ static void BM_World_Tick_Threads_SoA(benchmark::State& state) {
     threads.reserve(n_threads);
     for (size_t tid = 0; tid < n_threads; ++tid) {
       threads.emplace_back([&worlds, tid]() {
-        for (size_t i = tid; i < worlds.size(); i += n_threads) {
+        for (size_t i = tid; i < n_worlds; i += n_threads) {
           worlds[i].tick_all();
         }
       });
@@ -133,21 +136,21 @@ static void BM_World_Tick_Threads_SoA(benchmark::State& state) {
       thread.join();
     }
   }
-  state.SetItemsProcessed(state.iterations() * num_vehicles);
+  state.SetItemsProcessed(state.iterations() * num_vehicles*n_worlds);
 }
 
-BENCHMARK(BM_World_Tick_SoA)
-    ->Arg(1)
-    ->Arg(10)
-    ->Arg(100)
+BENCHMARK(BM_World_Tick)
+    // ->Arg(1)
+    // ->Arg(10)
+    // ->Arg(100)
     ->Arg(1000)
-    ->Arg(10000)
-    ->Arg(100000);
-BENCHMARK(BM_World_Tick_Threads_SoA)
-    ->Arg(1)
-    ->Arg(10)
-    ->Arg(100)
+    ->Arg(10000);
+    // ->Arg(100000);
+BENCHMARK(BM_World_Tick_Threads)
+    // ->Arg(1)
+    // ->Arg(10)
+    // ->Arg(100)
     ->Arg(1000)
-    ->Arg(10000)
-    ->Arg(100000);
+    ->Arg(10000);
+    // ->Arg(100000);
 BENCHMARK_MAIN();

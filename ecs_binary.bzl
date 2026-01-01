@@ -10,7 +10,7 @@ def ecs_cc_binary(name, srcs):
         # data = [],
         additional_linker_inputs = [],
         # args = [""],
-        copts = ["-std=c++17", "-O3"],
+        # copts = ["-std=c++17", "-O3"],
         # includes = [""],
         # linkopts = ["-lbenchmark -lpthread"],
         linkshared = False,

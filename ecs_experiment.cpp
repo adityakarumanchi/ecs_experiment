@@ -35,9 +35,9 @@ class Vehicle {
 
 class World {
  public:
-  World(const unsigned int num_vehicles, const float curr_time = 0.0f,
-        const float time_step = 0.01f, const float duration = 1.0f)
-      : curr_time_(curr_time), time_step_(time_step), duration_(duration) {
+  World(const unsigned int num_vehicles,
+        const float time_step = 0.01f, const float duration = 1.0f, const float curr_time = 0.0f)
+      : time_step_(time_step), duration_(duration), curr_time_(curr_time) {
     for (size_t i = 0; i < num_vehicles; ++i) {
       vehicles_.emplace_back(Vec2d::Random() /*For position*/,
                              Vec2d::Random() /*For velocity*/);
@@ -54,42 +54,40 @@ class World {
 
  private:
   std::vector<Vehicle> vehicles_;
-  float curr_time_, time_step_, duration_;
+  float time_step_, duration_, curr_time_;
 };
 
 const auto n_threads = std::thread::hardware_concurrency();
-constexpr unsigned int scale_factor = 1024;
+constexpr unsigned int scale_factor = 100;
+const auto n_worlds = n_threads * scale_factor;
 
 static void BM_World_Tick(benchmark::State& state) {
   const int num_vehicles = static_cast<int>(state.range(0));
-  // std::cout << "Number of vehicles: " << num_vehicles << std::endl;
   constexpr float time_step = 0.01f;
-  constexpr float duration = 1.0f;
+  constexpr float duration = 100.0f;
 
   for (auto _ : state) {
     std::vector<World> worlds;
-    worlds.reserve(n_threads * scale_factor);
-    for (size_t i = 0; i < n_threads; ++i) {
+    worlds.reserve(n_worlds);
+    for (size_t i = 0; i < n_worlds; ++i) {
       worlds.emplace_back(num_vehicles, time_step, duration);
     }
     for (auto& world : worlds) {
       world.tick();
     }
   }
-  state.SetItemsProcessed(state.iterations() * num_vehicles);
+  state.SetItemsProcessed(state.iterations() * num_vehicles * n_worlds);
 }
 
 static void BM_World_Tick_Threads(benchmark::State& state) {
   const int num_vehicles = static_cast<int>(state.range(0));
-  // std::cout << "Number of vehicles: " << num_vehicles << std::endl;
-  // std::cout << "Number of threads: " << n_threads << std::endl;
   constexpr float time_step = 0.01f;
-  constexpr float duration = 1.0f;
+  constexpr float duration = 100.0f;
 
   for (auto _ : state) {
     std::vector<World> worlds;
-    worlds.reserve(n_threads * scale_factor);
-    for (size_t i = 0; i < n_threads; ++i) {
+    worlds.reserve(n_worlds);
+    for (size_t i = 0; i < n_worlds; ++i) {
       worlds.emplace_back(num_vehicles, time_step, duration);
     }
 
@@ -97,7 +95,7 @@ static void BM_World_Tick_Threads(benchmark::State& state) {
     threads.reserve(n_threads);
     for (size_t tid = 0; tid < n_threads; ++tid) {
       threads.emplace_back([&worlds, tid]() {
-        for (size_t i = tid; i < worlds.size(); i += n_threads) {
+        for (size_t i = tid; i < n_worlds; i += n_threads) {
           worlds[i].tick();
         }
       });
@@ -106,21 +104,21 @@ static void BM_World_Tick_Threads(benchmark::State& state) {
       thread.join();
     }
   }
-  state.SetItemsProcessed(state.iterations() * num_vehicles);
+  state.SetItemsProcessed(state.iterations() * num_vehicles* n_worlds);
 }
 
 BENCHMARK(BM_World_Tick)
-    ->Arg(1)
-    ->Arg(10)
-    ->Arg(100)
+    // ->Arg(1)
+    // ->Arg(10)
+    // ->Arg(100)
     ->Arg(1000)
-    ->Arg(10000)
-    ->Arg(100000);
+    ->Arg(10000);
+    // ->Arg(100000);
 BENCHMARK(BM_World_Tick_Threads)
-    ->Arg(1)
-    ->Arg(10)
-    ->Arg(100)
+    // ->Arg(1)
+    // ->Arg(10)
+    // ->Arg(100)
     ->Arg(1000)
-    ->Arg(10000)
-    ->Arg(100000);
+    ->Arg(10000);
+    // ->Arg(100000);
 BENCHMARK_MAIN();

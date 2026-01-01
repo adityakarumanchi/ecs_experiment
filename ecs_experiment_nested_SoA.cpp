@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <iostream>
 #include <memory>
 #include <new>
@@ -10,11 +11,12 @@
 using Vec2d = Eigen::Vector2d;
 class VehiclePool {
  public:
-  explicit VehiclePool(const int num_vehicles) {
-    posx_vec_.reserve(num_vehicles);
-    posy_vec_.reserve(num_vehicles);
-    velx_vec_.reserve(num_vehicles);
-    vely_vec_.reserve(num_vehicles);
+  explicit VehiclePool(const int nv) : num_vehicles(nv) {
+    posx_vec_.reserve(nv);
+    posy_vec_.reserve(nv);
+    velx_vec_.reserve(nv);
+    vely_vec_.reserve(nv);
+    // add_random_vehicles();
   }
 
   void add_vehicle(double x, double y, double vx, double vy) {
@@ -24,15 +26,18 @@ class VehiclePool {
     vely_vec_.emplace_back(vy);
   }
 
-  void add_random_vehicle() {
-    Vec2d pos = Vec2d::Random();
-    Vec2d vel = Vec2d::Random();
-    add_vehicle(pos[0], pos[1], vel[0], vel[1]);
+  void add_random_vehicles() {
+    for (size_t i = 0; i < num_vehicles; ++i) {
+      Vec2d pos = Vec2d::Random();
+      Vec2d vel = Vec2d::Random();
+      add_vehicle(pos[0], pos[1], vel[0], vel[1]);
+    }
   }
-
   void move_all(float dt) {
     for (size_t i = 0; i < posx_vec_.size(); ++i) {
       posx_vec_[i] += velx_vec_[i] * dt;
+    }
+    for (size_t i = 0; i < posy_vec_.size(); ++i) {
       posy_vec_[i] += vely_vec_[i] * dt;
     }
   }
@@ -40,43 +45,48 @@ class VehiclePool {
   void move_range(size_t start_idx, size_t end_idx, float dt) {
     for (size_t i = start_idx; i < end_idx; ++i) {
       posx_vec_[i] += velx_vec_[i] * dt;
+      }
+    for (size_t i = start_idx; i < end_idx; ++i) {
       posy_vec_[i] += vely_vec_[i] * dt;
     }
   }
 
-  size_t size() const { return posx_vec_.size(); }
-
  private:
+  const unsigned int num_vehicles;
   std::vector<double> posx_vec_, posy_vec_, velx_vec_, vely_vec_;
 };
 
 class WorldPool {
  public:
   WorldPool(const unsigned int num_vehicles, const unsigned int num_worlds,
-            const float time_step = 0.01f, const float duration = 1.0f)
-      : /* vehicles_(num_vehicles),*/ time_step_(time_step),
+            const float time_step = 0.01f, const float duration = 1.0f, const float curr_time = 0.0f)
+      : time_step_(time_step),
         duration_(duration),
-        curr_time_(0.0f) {
-    for (int i = 0; i < num_vehicles; ++i) {
-      vehicles_.add_random_vehicle();
+        curr_time_(curr_time) {
+    worlds_.reserve(num_worlds);
+    for (size_t i = 0; i < num_worlds; ++i) {
+      worlds_.emplace_back(num_vehicles);
+      worlds_.back().add_random_vehicles();
     }
   }
 
   void tick_all() {
     while (curr_time_ < duration_) {
-      vehicles_.move_all(time_step_);
+      for (auto& world : worlds_) {
+        world.move_all(time_step_);
+      }
       curr_time_ += time_step_;
     }
   }
 
   void tick_range(size_t start_idx, size_t end_idx) {
     while (curr_time_ < duration_) {
-      vehicles_.move_range(start_idx, end_idx, time_step_);
+      for (size_t i = start_idx; i < end_idx; ++i) {
+        worlds_[i].move_all(time_step_);
+      }
       curr_time_ += time_step_;
     }
   }
-
-  size_t num_vehicles() const { return vehicles_.size(); }
 
  private:
   std::vector<VehiclePool> worlds_;
@@ -85,6 +95,7 @@ class WorldPool {
 
 const auto n_threads = std::thread::hardware_concurrency();
 constexpr unsigned int scale_factor = 8;
+const auto n_worlds = n_threads * scale_factor;
 
 static void BM_World_Tick_SoA(benchmark::State& state) {
   const int num_vehicles = static_cast<int>(state.range(0));
@@ -93,14 +104,8 @@ static void BM_World_Tick_SoA(benchmark::State& state) {
   constexpr float duration = 1.0f;
 
   for (auto _ : state) {
-    std::vector<World> worlds;
-    worlds.reserve(n_threads * scale_factor);
-    for (auto i = 0; i < n_threads; ++i) {
-      worlds.emplace_back(num_vehicles, time_step, duration);
-    }
-    for (auto& world : worlds) {
-      world.tick_all();
-    }
+    WorldPool worlds(num_vehicles, n_worlds, time_step, duration);
+    worlds.tick_all();
   }
   state.SetItemsProcessed(state.iterations() * num_vehicles);
 }
